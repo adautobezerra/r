@@ -1,0 +1,209 @@
+---
+title: "TRABALHO DO MICRODADOS ENADE 2017"
+output:
+  html_document: default
+  word_document: default
+  pdf_document: default
+author: "Adauto Bezerra"
+date: "17 de Junho de 2020"
+---
+
+```{r, include=FALSE}
+library(readr)
+library(ggplot2)
+library(plotly)
+library(e1071)
+require(dplyr)
+require(Hmisc)
+require(esquisse)
+library(DescTools)
+require(gridExtra)
+```
+
+
+# RESPOSTA A)
+```{r}
+#DIRECIONAMENTO DAS PASTAS
+setwd("D:\\USUARIO\\Area de Trabalho\\CIENCIA DE DADOS")
+getwd()
+
+#IMPORTANDO O DATASET
+enade2017 = read_csv2("MICRODADOS_ENADE_2017.txt") 
+```
+
+# RESPOSTA B)
+```{r}
+#SELECIONANDO AS VARIAVEIS
+microdados_enade_filtrados= enade2017 %>% dplyr::select(NT_OBJ_FG, 
+                                                        CO_GRUPO, 
+                                                        CO_REGIAO_CURSO, 
+                                                        QE_I02, 
+                                                        CO_TURNO_GRADUACAO
+)
+
+#CLASSIFICACAO DAS VARIAVEIS
+
+class(microdados_enade_filtrados$NT_OBJ_FG)
+class(microdados_enade_filtrados$CO_GRUPO)
+class(microdados_enade_filtrados$CO_REGIAO_CURSO)
+class(microdados_enade_filtrados$QE_I02)
+class(microdados_enade_filtrados$CO_TURNO_GRADUACAO)
+```
+
+# RESPOSTA C)
+```{r}
+#CURSO SELECIONADO FOI O DE FILOSOFIA #3102
+
+microdados_filosofia= microdados_enade_filtrados %>% filter(CO_GRUPO==3201)
+```
+
+# RESPOSTA D)
+```{r}
+microdados_filosofia = microdados_filosofia %>% mutate(REGIAO = case_when( CO_REGIAO_CURSO == 1 ~ "NORTE",
+                                                             CO_REGIAO_CURSO == 2 ~ "NORDESTE",
+                                                             CO_REGIAO_CURSO == 3 ~ "SUDESTE",
+                                                             CO_REGIAO_CURSO == 4 ~ "SUL",
+                                                             CO_REGIAO_CURSO == 5 ~ "CENTRO-OESTE"
+)) 
+
+#CO_GRUPO
+microdados_filosofia = microdados_filosofia %>% mutate(CURSO = case_when( CO_GRUPO == 3201 ~"FILOSOFIA (BACHARELADO)"
+))
+
+#QE_I02
+microdados_filosofia = microdados_filosofia %>% mutate(COR = case_when(  QE_I02 == "A" ~ "BRANCA",
+                                                                         QE_I02 == "B" ~ "PRETA",
+                                                                         QE_I02 == "C" ~ "AMARELA",
+                                                                         QE_I02 == "D" ~ "PARDA",
+                                                                         QE_I02 == "E" ~ "INDIGENA",
+                                                                         QE_I02 == "F" ~ "NAO QUERO DECLARA"
+  )) 
+
+
+#CO_TURNO_GRADUACAO
+microdados_filosofia = microdados_filosofia %>% mutate(TURNO = case_when(  CO_TURNO_GRADUACAO == 1 ~ "MATUTINO",
+                                                                           CO_TURNO_GRADUACAO == 2 ~ "VESPERTINO",
+                                                                           CO_TURNO_GRADUACAO == 3 ~ "INTEGRAL",
+                                                                           CO_TURNO_GRADUACAO == 4 ~ "NOTURNO"
+  )) 
+```
+
+# RESPOSTA E)
+```{r}
+describe(microdados_filosofia$REGIAO)
+
+#FREQUENCIA DA REGIAO
+prop.table(table(microdados_filosofia$REGIAO))
+
+#AGRUPAMENTO DA REGIAO
+microdados_filosofia %>% 
+  select(REGIAO) %>% 
+  group_by(REGIAO) %>% 
+  summarise(total = n())
+
+#MEDIA DA REGIAO
+microdados_filosofia %>% 
+  select(REGIAO,NT_OBJ_FG) %>% 
+  group_by(REGIAO) %>% 
+  summarise(media = mean(NT_OBJ_FG,na.rm = T))
+
+#REMOVENDO AS NA'S
+microdados_filosofia_sem_NA=microdados_filosofia %>% na.omit()
+
+resumo_nas=microdados_filosofia_sem_NA %>%
+  select(everything()) %>%  
+  summarise_all(list(~sum(is.na(.))))
+
+#CALCULANDO A QUANTIDADE DE LUNHAS ORIGINAL
+dim(microdados_filosofia)[1]
+#QUANTIDADE DE LINHAS QUE CONTINHAM NA REMOVIDAS
+dim(microdados_filosofia)[1] - dim(microdados_filosofia_sem_NA)[1]
+
+#ANALISANDO O TAMANHO DO VETOR
+quantidade_de_notas=length(microdados_filosofia_sem_NA$NT_OBJ_FG)
+
+
+#VERIFICANDO A MEDIA
+media=mean(microdados_filosofia_sem_NA$NT_OBJ_FG)
+
+#ANALISANDO A MEDIANA
+mediana=median(microdados_filosofia_sem_NA$NT_OBJ_FG)
+
+#MODA
+#CALCULANDO A FREQUENCIA
+fs=table(microdados_filosofia_sem_NA$NT_OBJ_FG)
+#CALCULANDO O MAXIMO DA FREQUENCIA
+maximo=max(fs)
+#NOMES DA FS
+nomes=names(fs)
+#COMPARAÇÃO LOGICA
+moda_texto=nomes[fs==maximo]
+#TRANSFORMANDO EM NUMERO
+moda_numero=as.numeric(moda_texto)
+
+moda=Mode(microdados_filosofia_sem_NA$NT_OBJ_FG)
+
+consolidado_notas=data.frame("Quantidade_de_notas"=quantidade_de_notas,
+                             "Media"=media,
+                             "Mediana"=mediana,
+                             "moda"=moda_numero)
+
+#CALCULANDO A ASSIMETRIA
+assimetria=skewness(microdados_filosofia_sem_NA$NT_OBJ_FG)
+
+#CURTOSE
+curtose=kurtosis(microdados_filosofia_sem_NA$NT_OBJ_FG)
+
+consolidado_notas_completo=cbind(consolidado_notas,assimetria, curtose)
+
+#RESUMO FINAL
+
+microdados_filosofia_sem_NA %>% 
+  select(NT_OBJ_FG) %>% 
+  summarise(  quantidade=n(),
+              media = mean(NT_OBJ_FG),
+              mediana = median(NT_OBJ_FG),
+              moda=Mode(NT_OBJ_FG),
+              cv=sd(NT_OBJ_FG)/media*100,
+              assimetria=skewness(NT_OBJ_FG),
+              curtose=kurtosis(NT_OBJ_FG)
+  ) %>% 
+  arrange(desc(mediana))
+```
+
+# RESPOSTA F)
+```{r}
+dados=microdados_filosofia_sem_NA
+#GRAFICO DE NOTAS POR COR
+notaporcor = ggplot(dados, aes(x=COR,y=NT_OBJ_FG,fill=COR)) + 
+  geom_boxplot() +
+  ggtitle("GRAFICO BOXPLOT DE NOTA POR COR")+
+  ylab("NOTAS")+
+theme(text = element_text(size=10),
+      axis.text.x = element_text(angle=90, hjust=1)) 
+
+ggplotly(notaporcor)
+
+
+#GRAFICO DE NOTAS POR TURNO
+notaporturno = ggplot(dados, aes(x=TURNO,y=NT_OBJ_FG,fill=TURNO)) + 
+  geom_boxplot() +
+  ggtitle("GRAFICO BOXPLOT DE NOTA POR TURNO")+
+  ylab("NOTAS")
+
+ggplotly(notaporturno)
+
+
+regiaoporcor = ggplot(dados, aes(x=COR,y=NT_OBJ_FG,fill=COR)) + 
+  geom_boxplot() +
+  ggtitle("GRAFICO BOXPLOT DE NOTAS POR REGIAO")+
+  ylab("NOTAS") +
+  facet_grid(~REGIAO)+
+  theme(text = element_text(size=10),
+        axis.text.x = element_text(angle=90, hjust=1)) 
+
+ggplotly(regiaoporcor)
+```
+
+# RESPOSTA G)
+### Para acessar o meu flexdashboard [clique aqui](http://rpubs.com/adautobezerra/flexmicroenadefil).
